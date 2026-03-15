@@ -1,0 +1,81 @@
+spring:
+  application:
+    name: gym-platform
+  datasource:
+    url: jdbc:oracle:thin:@localhost:1521:ORCL
+    username: C##ADMIN
+    password: vikidev2179
+    driver-class-name: oracle.jdbc.OracleDriver
+  jpa:
+    open-in-view: false
+    database-platform: org.hibernate.dialect.OracleDialect
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+    listener:
+      simple:
+        default-requeue-rejected: false
+        missing-queues-fatal: false
+      direct:
+        missing-queues-fatal: false
+  mail:
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:gvignesh282@gmail.com}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+
+gym:
+  cors:
+    allowed-origins:
+      - ${FRONTEND_URL:http://localhost:5173}
+  notifications:
+    fee-reminder-window-days: 5
+    renewal-reminder-window-days: 7
+    scheduler-cron: "0 0 9 * * *"
+    exchange: gym.notifications.exchange
+    routing-key: notifications.dispatch
+    queue: gym.notifications.dispatch
+    dead-letter-exchange: gym.notifications.dlx
+    dead-letter-queue: gym.notifications.dispatch.dlq
+    dead-letter-routing-key: notifications.dispatch.dlq
+    brand-name: Codex Gym
+    whatsapp:
+      enabled: true
+      dry-run: true
+      webhook-url: ${WHATSAPP_WEBHOOK_URL:}
+      bearer-token: ${WHATSAPP_BEARER_TOKEN:}
+    email:
+      enabled: true
+      from: ${MAIL_FROM:gvignesh282@gmail.com}
+      admin-recipient: gvignesh282@gmail.com
+    telegram:
+      enabled: true
+      dry-run: false
+      bot-token: "8594422088:AAE_T6LOFH4pgCodTh4Q1JrGZHQZDPc8ki4"
+      bot-username: "JAIFitness_bot"
+      chat-id: "1209191284"
+      api-base-url: https://api.telegram.org
+      connect-token-ttl-minutes: 30
+      deep-link-base-url: https://t.me
