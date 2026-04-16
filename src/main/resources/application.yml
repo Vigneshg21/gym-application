@@ -2,18 +2,19 @@ spring:
   application:
     name: gym-platform
   datasource:
-    url: jdbc:oracle:thin:@localhost:1521:ORCL
-    username: C##ADMIN
-    password: vikidev2179
-    driver-class-name: oracle.jdbc.OracleDriver
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/gym}
+    username: ${SPRING_DATASOURCE_USERNAME:Ajeesh}
+    password: ${SPRING_DATASOURCE_PASSWORD:8072125716}
+    driver-class-name: org.postgresql.Driver
   jpa:
     open-in-view: false
-    database-platform: org.hibernate.dialect.OracleDialect
     hibernate:
-      ddl-auto: update
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
     properties:
       hibernate:
-        format_sql: true
+        format_sql: ${SPRING_JPA_PROPERTIES_HIBERNATE_FORMAT_SQL:true}
+        jdbc:
+          time_zone: ${APP_TIME_ZONE:Asia/Kolkata}
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}
     port: ${RABBITMQ_PORT:5672}
@@ -28,14 +29,14 @@ spring:
   mail:
     host: ${MAIL_HOST:smtp.gmail.com}
     port: ${MAIL_PORT:587}
-    username: ${MAIL_USERNAME:gvignesh282@gmail.com}
+    username: ${MAIL_USERNAME:}
     password: ${MAIL_PASSWORD:}
     properties:
       mail:
         smtp:
-          auth: true
+          auth: ${MAIL_SMTP_AUTH:true}
           starttls:
-            enable: true
+            enable: ${MAIL_SMTP_STARTTLS_ENABLE:true}
   jackson:
     serialization:
       write-dates-as-timestamps: false
@@ -45,6 +46,9 @@ management:
     web:
       exposure:
         include: health,info,metrics
+  health:
+    mail:
+      enabled: ${MANAGEMENT_HEALTH_MAIL_ENABLED:false}
 
 gym:
   cors:
@@ -60,22 +64,22 @@ gym:
     dead-letter-exchange: gym.notifications.dlx
     dead-letter-queue: gym.notifications.dispatch.dlq
     dead-letter-routing-key: notifications.dispatch.dlq
-    brand-name: Codex Gym
+    brand-name: ${GYM_BRAND_NAME:Codex Gym}
     whatsapp:
-      enabled: true
-      dry-run: true
+      enabled: ${WHATSAPP_ENABLED:true}
+      dry-run: ${WHATSAPP_DRY_RUN:true}
       webhook-url: ${WHATSAPP_WEBHOOK_URL:}
       bearer-token: ${WHATSAPP_BEARER_TOKEN:}
     email:
-      enabled: true
-      from: ${MAIL_FROM:gvignesh282@gmail.com}
-      admin-recipient: gvignesh282@gmail.com
+      enabled: ${EMAIL_NOTIFICATIONS_ENABLED:false}
+      from: ${MAIL_FROM:no-reply@codexgym.local}
+      admin-recipient: ${ADMIN_EMAIL_RECIPIENT:}
     telegram:
-      enabled: true
-      dry-run: false
-      bot-token: "8594422088:AAE_T6LOFH4pgCodTh4Q1JrGZHQZDPc8ki4"
-      bot-username: "JAIFitness_bot"
-      chat-id: "1209191284"
-      api-base-url: https://api.telegram.org
-      connect-token-ttl-minutes: 30
-      deep-link-base-url: https://t.me
+      enabled: ${TELEGRAM_ENABLED:false}
+      dry-run: ${TELEGRAM_DRY_RUN:true}
+      bot-token: ${TELEGRAM_BOT_TOKEN:}
+      bot-username: ${TELEGRAM_BOT_USERNAME:}
+      chat-id: ${TELEGRAM_CHAT_ID:}
+      api-base-url: ${TELEGRAM_API_BASE_URL:https://api.telegram.org}
+      connect-token-ttl-minutes: ${TELEGRAM_CONNECT_TOKEN_TTL_MINUTES:30}
+      deep-link-base-url: ${TELEGRAM_DEEP_LINK_BASE_URL:https://t.me}

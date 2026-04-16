@@ -9,46 +9,55 @@ Spring Boot application for gym operations with:
 - RabbitMQ-backed notification delivery
 - Scheduled fee reminders and renewal reminders
 - Dashboard metrics for finance and membership health
-- Separate React frontend for operations teams
+- Separate frontend for operations teams
 
 ## Stack
 
 - Java 21
 - Spring Boot 3.3
 - Spring Web, Validation, JPA, Actuator, Mail
+- PostgreSQL for runtime persistence
 - RabbitMQ for async notifications
-- Oracle for runtime persistence
+- Docker Compose for local deployment
 - H2 for local tests
-- React + TypeScript + Vite frontend
 
-## Run locally
+## Local backend run
 
-1. Start supporting services:
+1. Start PostgreSQL and RabbitMQ in Docker:
 
 ```bash
-docker compose up -d rabbitmq
+docker compose up -d postgres rabbitmq
 ```
 
-2. Run the backend:
+2. Run the backend locally:
 
 ```bash
 mvn spring-boot:run
 ```
 
-3. Run the frontend:
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-4. Useful URLs:
+3. Useful URLs:
 
 - Backend API base: `http://localhost:8080/api/v1`
-- Frontend app: `http://localhost:5173`
 - Health: `http://localhost:8080/actuator/health`
 - RabbitMQ management: `http://localhost:15672` (`guest` / `guest`)
+- PostgreSQL: `localhost:5432` (`ajeesh` / `8072125716`, database `gym`)
+
+## Full Docker deployment
+
+Run the full backend stack in containers:
+
+```bash
+docker compose up --build
+```
+
+The backend will be available at `http://localhost:8080` and will connect to the Postgres container automatically.
+
+## Environment configuration
+
+- Runtime secrets have been moved out of `application.yml`.
+- Default local database credentials are `ajeesh` / `8072125716` for the Docker Postgres container.
+- Optional mail and Telegram settings can be provided through environment variables.
+- `.env.example` documents the supported Docker Compose variables.
 
 ## Core backend endpoints
 
@@ -65,16 +74,8 @@ npm run dev
 - `POST /api/v1/notifications/admin-test`
 - `GET /api/v1/dashboard`
 
-## Email and Telegram
-
-- Email delivery uses Spring Mail and is configured for Gmail SMTP by default.
-- Set `MAIL_USERNAME` to `gvignesh282@gmail.com` and `MAIL_PASSWORD` to a Gmail App Password, not your normal Gmail password.
-- Telegram bot delivery needs `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`.
-- A Telegram phone number alone is not enough for bot delivery. You must start a bot with BotFather and get the chat id of the target chat.
-- Use `POST /api/v1/notifications/admin-test` with a JSON body like `{ "message": "Gym notification test" }` to test the configured admin email and Telegram channels.
-
 ## Notes
 
-- WhatsApp stays in dry-run mode for now.
-- The backend accepts the frontend origin through `FRONTEND_URL`, which defaults to `http://localhost:5173` for local React development.
-- RabbitMQ is used as the notification backbone so reminders are decoupled from the main transaction flow.
+- WhatsApp stays in dry-run mode unless you provide a webhook and token.
+- The backend accepts the frontend origin through `FRONTEND_URL`, which defaults to `http://localhost:5173`.
+- The frontend codebase is not present in this workspace, so the Docker setup here covers the backend, Postgres, and RabbitMQ stack.

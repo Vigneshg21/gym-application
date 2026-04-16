@@ -66,6 +66,42 @@ public class MemberService {
     }
 
     @Transactional(readOnly = true)
+    public MemberResponse findMemberByPhone(String phoneNumber) {
+        return memberRepository.findByPhoneNumber(phoneNumber)
+                .map(gymMapper::toResponse)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Member not found"));
+    }
+
+    @Transactional
+    public MemberResponse updateMember(UUID memberId, CreateMemberRequest request) {
+        try {
+            Member member = findMemberEntity(memberId);
+            // ensure phone number uniqueness (if another member already uses this phone number)
+            String newPhone = request.phoneNumber().trim();
+            memberRepository.findByPhoneNumber(newPhone).filter(m -> !m.getId().equals(memberId)).ifPresent(m -> {
+                throw new ApiException(HttpStatus.CONFLICT, "Phone number already in use by another member");
+            });
+            member.setFirstName(request.firstName().trim());
+            member.setLastName(request.lastName().trim());
+            member.setPhoneNumber(newPhone);
+            member.setWhatsappNumber(blankToNull(request.whatsappNumber()));
+            member.setEmail(blankToNull(request.email()));
+            member.setTelegramChatId(blankToNull(request.telegramChatId()));
+            member.setDateOfBirth(request.dateOfBirth());
+            member.setEmergencyContactName(blankToNull(request.emergencyContactName()));
+            member.setEmergencyContactPhone(blankToNull(request.emergencyContactPhone()));
+            member.setNotes(blankToNull(request.notes()));
+            member.setProfileImageContentType(resolveProfileImageContentType(request));
+            member.setProfileImage(decodeProfileImage(request.profileImageBase64()));
+
+            Member saved = memberRepository.save(member);
+            return gymMapper.toResponse(saved);
+        } catch (DataIntegrityViolationException exception) {
+            throw new ApiException(HttpStatus.CONFLICT, "Member code, phone, WhatsApp number, email, or Telegram chat ID already exists");
+        }
+    }
+
+    @Transactional(readOnly = true)
     public Member findMemberEntity(UUID memberId) {
         return memberRepository.findById(memberId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Member not found"));

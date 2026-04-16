@@ -11,6 +11,8 @@ import com.codexgym.gym.dto.TelegramConnectionSyncResponse;
 import com.codexgym.gym.dto.UpdateMemberTelegramChatRequest;
 import com.codexgym.gym.messaging.NotificationAttachment;
 import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.RequestParam;
+import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -41,6 +43,18 @@ public class MemberController {
     public ResponseEntity<MemberResponse> createMember(@Valid @RequestBody CreateMemberRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(memberService.createMember(request));
     }
+
+    @PutMapping("/{memberId}")
+    public MemberResponse updateMember(@PathVariable UUID memberId, @Valid @RequestBody CreateMemberRequest request) {
+        return memberService.updateMember(memberId, request);
+    }
+
+    @GetMapping("/by-phone")
+    public MemberResponse findByPhone(@RequestParam String phoneNumber) {
+        return memberService.findMemberByPhone(phoneNumber);
+    }
+    
+    
 
     @GetMapping
     public List<MemberResponse> listMembers() {

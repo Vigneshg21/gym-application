@@ -85,6 +85,29 @@ public class NotificationService {
     }
 
     @Transactional
+    public void queueInvoiceReceiptPdf(UUID invoiceId, NotificationAttachment pdfAttachment) {
+        Invoice invoice = billingService.findInvoiceEntity(invoiceId);
+        if (invoice.getBalanceDue().signum() > 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Only paid invoices can send a receipt");
+        }
+
+        if (pdfAttachment == null || pdfAttachment.getContent() == null || pdfAttachment.getContent().length == 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "PDF attachment is required");
+        }
+
+        Member member = invoice.getMember();
+        String subject = notificationProperties.getBrandName() + " payment receipt";
+        String messageBody = notificationMessageFactory.buildPaymentReceipt(member, invoice);
+
+        int memberQueued = 0;
+        memberQueued += queueMemberWhatsApp(member, invoice, invoice.getMembership(), NotificationEventType.PAYMENT_RECEIPT, subject, messageBody);
+        memberQueued += queueMemberEmail(member, invoice, invoice.getMembership(), NotificationEventType.PAYMENT_RECEIPT, subject, messageBody, pdfAttachment);
+        memberQueued += queueMemberTelegram(member, invoice, invoice.getMembership(), NotificationEventType.PAYMENT_RECEIPT, subject, messageBody, pdfAttachment);
+        ensureQueued(memberQueued, "No email, Telegram, or WhatsApp recipient is configured for this receipt");
+        queueAdminTelegramCopy(member, invoice, invoice.getMembership(), NotificationEventType.PAYMENT_RECEIPT, subject, messageBody, pdfAttachment);
+    }
+
+    @Transactional
     public void queueMemberCard(UUID memberId) {
         queueMemberCardSnapshot(memberCardService.prepareMemberCard(memberId));
     }
@@ -329,6 +352,12 @@ public class NotificationService {
             return 0;
         }
 
+        String adminChatId = normalizeValue(notificationProperties.getTelegram().getChatId());
+        String memberChatId = member == null ? null : normalizeValue(member.getTelegramChatId());
+        if (adminChatId != null && adminChatId.equals(memberChatId)) {
+            return 0;
+        }
+
         String adminMessage = buildAdminTelegramCopy(member, eventType, messageBody);
         return createAndPublishLog(
                 member,
@@ -336,7 +365,7 @@ public class NotificationService {
                 membership,
                 eventType,
                 NotificationChannel.TELEGRAM,
-                notificationProperties.getTelegram().getChatId().trim(),
+                adminChatId,
                 subject,
                 adminMessage,
                 attachment
@@ -425,6 +454,10 @@ public class NotificationService {
 
     private boolean hasText(String value) {
         return value != null && !value.isBlank();
+    }
+
+    private String normalizeValue(String value) {
+        return hasText(value) ? value.trim() : null;
     }
 
     private String buildAdminTelegramCopy(Member member, NotificationEventType eventType, String messageBody) {

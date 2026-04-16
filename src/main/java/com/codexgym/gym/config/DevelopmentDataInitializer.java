@@ -44,46 +44,46 @@ public class DevelopmentDataInitializer {
                 membershipPlanRepository.save(createPlan("Annual Pro", 365, new BigDecimal("24000.00"), BigDecimal.ZERO, "VIP_ACCESS"));
             }
 
-            if (memberRepository.count() == 0) {
-                Member member = new Member();
-                member.setMemberCode(memberCodeGenerator.nextMemberCode());
-                member.setFirstName("Aarav");
-                member.setLastName("Sharma");
-                member.setPhoneNumber("+919999999991");
-                member.setWhatsappNumber("+919999999991");
-                member.setEmail("aarav.sharma@example.com");
-                member.setStatus(MemberStatus.ACTIVE);
-                member.setNotes("Seed member for local testing");
-                member = memberRepository.save(member);
-
-                MembershipPlan plan = membershipPlanRepository.findAll().get(0);
-                Membership membership = new Membership();
-                membership.setMember(member);
-                membership.setPlan(plan);
-                membership.setStartDate(LocalDate.now(clock));
-                membership.setEndDate(LocalDate.now(clock).plusDays(plan.getDurationInDays() - 1L));
-                membership.setStatus(MembershipStatus.ACTIVE);
-                membership.setAutoRenew(false);
-                membership.setAgreedPrice(plan.getPrice());
-                membership = membershipRepository.save(membership);
-
-                Invoice invoice = new Invoice();
-                invoice.setMember(member);
-                invoice.setMembership(membership);
-                invoice.setInvoiceNumber(invoiceNumberGenerator.nextInvoiceNumber());
-                invoice.setIssueDate(LocalDate.now(clock));
-                invoice.setDueDate(LocalDate.now(clock).plusDays(3));
-                invoice.setAmount(plan.getPrice().add(plan.getJoiningFee()));
-                invoice.setDiscountAmount(BigDecimal.ZERO);
-                invoice.setTaxAmount(BigDecimal.ZERO);
-                invoice.setTotalAmount(plan.getPrice().add(plan.getJoiningFee()));
-                invoice.setAmountPaid(BigDecimal.ZERO);
-                invoice.setBalanceDue(plan.getPrice().add(plan.getJoiningFee()));
-                invoice.setStatus(InvoiceStatus.PENDING);
-                invoice.setType(InvoiceType.MEMBERSHIP_SIGNUP);
-                invoice.setNotes("Seed invoice for local reminder testing");
-                invoiceRepository.save(invoice);
-            }
+//            if (memberRepository.count() == 0) {
+//                Member member = new Member();
+//                member.setMemberCode(memberCodeGenerator.nextMemberCode());
+//                member.setFirstName("Aarav");
+//                member.setLastName("Sharma");
+//                member.setPhoneNumber("+919999999991");
+//                member.setWhatsappNumber("+919999999991");
+//                member.setEmail("aarav.sharma@example.com");
+//                member.setStatus(MemberStatus.ACTIVE);
+//                member.setNotes("Seed member for local testing");
+//                member = memberRepository.save(member);
+//
+//                MembershipPlan plan = membershipPlanRepository.findAll().get(0);
+//                Membership membership = new Membership();
+//                membership.setMember(member);
+//                membership.setPlan(plan);
+//                membership.setStartDate(LocalDate.now(clock));
+//                membership.setEndDate(LocalDate.now(clock).plusDays(plan.getDurationInDays() - 1L));
+//                membership.setStatus(MembershipStatus.ACTIVE);
+//                membership.setAutoRenew(false);
+//                membership.setAgreedPrice(plan.getPrice());
+//                membership = membershipRepository.save(membership);
+//
+//                Invoice invoice = new Invoice();
+//                invoice.setMember(member);
+//                invoice.setMembership(membership);
+//                invoice.setInvoiceNumber(invoiceNumberGenerator.nextInvoiceNumber());
+//                invoice.setIssueDate(LocalDate.now(clock));
+//                invoice.setDueDate(LocalDate.now(clock).plusDays(3));
+//                invoice.setAmount(plan.getPrice().add(plan.getJoiningFee()));
+//                invoice.setDiscountAmount(BigDecimal.ZERO);
+//                invoice.setTaxAmount(BigDecimal.ZERO);
+//                invoice.setTotalAmount(plan.getPrice().add(plan.getJoiningFee()));
+//                invoice.setAmountPaid(BigDecimal.ZERO);
+//                invoice.setBalanceDue(plan.getPrice().add(plan.getJoiningFee()));
+//                invoice.setStatus(InvoiceStatus.PENDING);
+//                invoice.setType(InvoiceType.MEMBERSHIP_SIGNUP);
+//                invoice.setNotes("Seed invoice for local reminder testing");
+//                invoiceRepository.save(invoice);
+//            }
         };
     }
 

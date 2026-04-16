@@ -59,26 +59,7 @@ class NotificationServiceTest {
 
     @BeforeEach
     void setUp() {
-        NotificationProperties properties = new NotificationProperties();
-        properties.setBrandName("Jai Fitness");
-        properties.getWhatsapp().setEnabled(false);
-        properties.getEmail().setEnabled(false);
-        properties.getTelegram().setEnabled(true);
-        properties.getTelegram().setChatId("admin-chat");
-
-        Clock clock = Clock.fixed(Instant.parse("2026-03-14T04:00:00Z"), ZoneId.of("Asia/Calcutta"));
-        notificationService = new NotificationService(
-                billingService,
-                membershipService,
-                memberService,
-                memberCardService,
-                notificationLogRepository,
-                new InvoiceDocumentFactory(properties),
-                new NotificationMessageFactory(properties),
-                notificationPublisher,
-                properties,
-                clock
-        );
+        notificationService = buildNotificationService("admin-chat");
     }
 
     @Test
@@ -118,6 +99,46 @@ class NotificationServiceTest {
         assertThatThrownBy(() -> notificationService.queueInvoiceReceipt(invoice.getId()))
                 .isInstanceOf(ApiException.class)
                 .hasMessageContaining("Only paid invoices can send a receipt");
+    }
+    @Test
+    void queueInvoiceReceiptSkipsAdminCopyWhenTelegramChatMatchesMember() {
+        notificationService = buildNotificationService("member-chat");
+        when(notificationLogRepository.save(any(NotificationLog.class))).thenAnswer(invocation -> {
+            NotificationLog log = invocation.getArgument(0);
+            log.setId(UUID.randomUUID());
+            log.setStatus(NotificationStatus.PENDING);
+            return log;
+        });
+
+        Invoice invoice = buildInvoice(new BigDecimal("0.00"), InvoiceStatus.PAID);
+        when(billingService.findInvoiceEntity(invoice.getId())).thenReturn(invoice);
+
+        notificationService.queueInvoiceReceipt(invoice.getId());
+
+        verify(notificationPublisher, times(1)).publish(any(NotificationEventMessage.class));
+    }
+
+    private NotificationService buildNotificationService(String adminChatId) {
+        NotificationProperties properties = new NotificationProperties();
+        properties.setBrandName("AJEESH HIFI FITNESS");
+        properties.getWhatsapp().setEnabled(false);
+        properties.getEmail().setEnabled(false);
+        properties.getTelegram().setEnabled(true);
+        properties.getTelegram().setChatId(adminChatId);
+
+        Clock clock = Clock.fixed(Instant.parse("2026-03-14T04:00:00Z"), ZoneId.of("Asia/Calcutta"));
+        return new NotificationService(
+                billingService,
+                membershipService,
+                memberService,
+                memberCardService,
+                notificationLogRepository,
+                new InvoiceDocumentFactory(properties),
+                new NotificationMessageFactory(properties),
+                notificationPublisher,
+                properties,
+                clock
+        );
     }
 
     private Invoice buildInvoice(BigDecimal balanceDue, InvoiceStatus status) {

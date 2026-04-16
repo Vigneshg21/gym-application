@@ -11,4 +11,5 @@ public interface MemberRepository extends JpaRepository<Member, UUID> {
     long countByStatus(MemberStatus status);
 
     Optional<Member> findByTelegramChatId(String telegramChatId);
+    Optional<Member> findByPhoneNumber(String phoneNumber);
 }
