@@ -1,0 +1,10 @@
+.env
+.idea/
+target/
+.target/
+app.jar
+data/
+docker-compose
+offline-package/
+*.tar
+*.backup

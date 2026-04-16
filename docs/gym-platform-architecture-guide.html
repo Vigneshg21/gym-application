@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gym Platform Architecture Guide</title>
+    <style>
+      @page { size: A4; margin: 22mm 16mm 18mm 16mm; }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: "Segoe UI", Arial, sans-serif;
+        color: #182433;
+        line-height: 1.45;
+        font-size: 11px;
+      }
+      h1, h2, h3, h4, p { margin: 0; }
+      h1 { font-size: 28px; margin-bottom: 8px; }
+      h2 {
+        font-size: 19px;
+        margin: 20px 0 10px;
+        color: #0d6e6e;
+        border-bottom: 2px solid #d7e0e8;
+        padding-bottom: 4px;
+      }
+      h3 { font-size: 14px; margin: 16px 0 8px; }
+      h4 { font-size: 12px; margin: 12px 0 6px; }
+      .hero {
+        padding: 18px 20px;
+        border: 1px solid #d7e0e8;
+        border-radius: 18px;
+        background: linear-gradient(135deg, #fffaf7, #f4f8fb);
+      }
+      .eyebrow {
+        text-transform: uppercase;
+        letter-spacing: 0.16em;
+        font-size: 10px;
+        color: #d05f2d;
+        font-weight: 700;
+        margin-bottom: 6px;
+      }
+      .muted { color: #5c6875; }
+      .grid-3 {
+        display: table;
+        width: 100%;
+        border-spacing: 10px 0;
+        margin-top: 14px;
+      }
+      .card {
+        display: table-cell;
+        width: 33.33%;
+        border: 1px solid #d7e0e8;
+        border-radius: 12px;
+        padding: 10px 12px;
+        background: white;
+      }
+      .card strong { display: block; font-size: 12px; margin-bottom: 4px; }
+      ul { margin: 8px 0 0 18px; padding: 0; }
+      li { margin: 3px 0; }
+      .flow {
+        white-space: pre-wrap;
+        font-family: "Cascadia Code", Consolas, monospace;
+        font-size: 9.2px;
+        line-height: 1.42;
+        background: #f4f7fa;
+        border: 1px solid #d7e0e8;
+        border-radius: 12px;
+        padding: 10px 12px;
+        margin: 8px 0 10px;
+      }
+      .pill-row { margin-top: 10px; }
+      .pill {
+        display: inline-block;
+        margin: 0 6px 6px 0;
+        padding: 5px 9px;
+        border-radius: 999px;
+        background: #fff1ea;
+        border: 1px solid #f0c8b6;
+        font-size: 10px;
+      }
+      table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+      th, td { border: 1px solid #d7e0e8; padding: 7px 8px; vertical-align: top; }
+      th { background: #edf3f8; text-align: left; font-size: 10px; }
+      tbody tr:nth-child(even) { background: #fbfdff; }
+      code {
+        font-family: "Cascadia Code", Consolas, monospace;
+        font-size: 9.5px;
+        background: #f5f7f9;
+        padding: 1px 4px;
+        border-radius: 4px;
+      }
+      .section { margin-top: 12px; }
+      .major { page-break-before: always; }
+      .note {
+        border-left: 4px solid #d05f2d;
+        background: #fff8f4;
+        padding: 10px 12px;
+        margin-top: 10px;
+      }
+      .small { font-size: 10px; }
+    </style>
+  </head>
+  <body>
+    <section class="hero">
+      <div class="eyebrow">Architecture Guide</div>
+      <h1>Gym Platform Project Walkthrough</h1>
+      <p class="muted">
+        Complete project explanation for the Spring Boot backend in <code>D:\Codex-Gym</code>.
+        This guide explains the purpose of each class, how the layers integrate, and how the
+        important business flows move through the system.
+      </p>
+      <div class="grid-3">
+        <div class="card">
+          <strong>Runtime Shape</strong>
+          Spring Boot API + PostgreSQL + RabbitMQ + optional Email / Telegram / WhatsApp channels.
+        </div>
+        <div class="card">
+          <strong>Main Business Areas</strong>
+          Members, membership plans, memberships, invoices, payments, reminders, receipts, and cards.
+        </div>
+        <div class="card">
+          <strong>Design Style</strong>
+          Controller -> application service -> repository / helper service -> integration gateway.
+        </div>
+      </div>
+      <div class="pill-row">
+        <span class="pill">Java 21 / 22 runtime compatible</span>
+        <span class="pill">Spring Boot 3.3</span>
+        <span class="pill">JPA + PostgreSQL</span>
+        <span class="pill">RabbitMQ notifications</span>
+        <span class="pill">Scheduler driven reminders</span>
+        <span class="pill">Telegram connect flow</span>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>1. Project In One Page</h2>
+      <p>
+        This project is a gym operations backend. It stores member and billing data in PostgreSQL,
+        exposes REST APIs for frontends or operators, and sends notifications asynchronously through
+        RabbitMQ. The code is intentionally layered so that HTTP handling, business rules,
+        persistence, document generation, and external delivery are separate concerns.
+      </p>
+      <div class="flow">Client / Frontend
+    -> REST Controllers
+    -> Application Services
+         -> Repositories -> PostgreSQL
+         -> Helper Services (mapping, code generation, document generation, message text generation)
+         -> Application Events -> MemberCardAutomationListener
+         -> NotificationPublisher -> RabbitMQ exchange -> queue -> NotificationConsumer
+                                                        -> EmailGateway / TelegramGateway / WhatsAppGateway
+
+Scheduled jobs
+    -> FeeReminderScheduler
+    -> NotificationService
+    -> same RabbitMQ path as manual notifications</div>
+      <div class="note">
+        The notification system is asynchronous by design. The database decides what should be sent,
+        <code>NotificationService</code> records a <code>PENDING</code> log, RabbitMQ transports the
+        work, and <code>NotificationConsumer</code> performs the actual channel delivery.
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>2. Boot And Runtime Flow</h2>
+      <div class="flow">Application start
+    -> GymPlatformApplication
+         -> enables scheduling
+         -> enables JPA auditing
+    -> TimeConfiguration creates Clock bean
+    -> WebCorsConfig loads CORS settings
+    -> RabbitMqNotificationConfig creates exchange / queue / DLQ / RabbitTemplate
+    -> Spring wires repositories, services, controllers, listeners, scheduler
+    -> DevelopmentDataInitializer seeds membership plans if database is empty
+    -> API becomes available on port 8080</div>
+      <p class="small muted">
+        Central runtime configuration comes from <code>src/main/resources/application.yml</code> and
+        container overrides via environment variables.
+      </p>
+    </section>
+
+    <section class="section">
+      <h2>3. End-To-End Business Flows</h2>
+
+      <h3>3.1 Member creation and automatic member card</h3>
+      <div class="flow">POST /api/v1/members
+    -> MemberController.createMember
+    -> MemberService.createMember
+         -> generate member code
+         -> validate / normalize input
+         -> decode profile image
+         -> MemberRepository.save
+         -> publish MemberCreatedEvent
+    -> transaction commits
+    -> MemberCardAutomationListener.onMemberCreated
+    -> NotificationService.queueMemberCard
+         -> MemberCardService.prepareMemberCard
+         -> MemberCardDocumentFactory.buildMemberCard
+         -> create NotificationLog(PENDING)
+         -> publish NotificationEventMessage to RabbitMQ
+    -> NotificationConsumer
+         -> EMAIL or TELEGRAM channel gateway
+         -> mark log SENT or FAILED</div>
+
+      <h3>3.2 Membership creation and invoice generation</h3>
+      <div class="flow">POST /api/v1/memberships
+    -> MembershipController.createMembership
+    -> MembershipService.createMembership
+         -> load member
+         -> load plan
+         -> validate active member + active plan
+         -> create Membership
+         -> BillingService.createInvoice
+              -> build membership signup invoice
+         -> publish MembershipCardRefreshEvent
+    -> return MembershipEnrollmentResponse
+    -> after commit listener can queue updated membership card notification</div>
+
+      <h3>3.3 Invoice payment and receipt notification</h3>
+      <div class="flow">POST /api/v1/invoices/{invoiceId}/payments
+    -> InvoiceController.recordPayment
+    -> BillingService.recordPayment
+         -> validate payment amount
+         -> save Payment
+         -> update Invoice amountPaid / balanceDue / status
+
+Optional next step
+POST /api/v1/invoices/{invoiceId}/receipt-notifications
+    -> NotificationService.queueInvoiceReceipt
+         -> build receipt attachment with InvoiceDocumentFactory
+         -> queue member and admin notifications
+         -> publish through RabbitMQ
+
+Alternative next step
+POST /api/v1/invoices/{invoiceId}/receipt-notifications/pdf
+    -> upload an external PDF
+    -> NotificationService.queueInvoiceReceiptPdf
+         -> send uploaded PDF instead of generated HTML receipt</div>
+
+      <h3>3.4 Daily reminders</h3>
+      <div class="flow">Scheduled cron (default 9:00 AM)
+    -> FeeReminderScheduler.pushScheduledReminders
+         -> MembershipService.refreshExpiredMemberships
+         -> BillingService.refreshOverdueInvoices
+         -> find due / overdue invoices
+         -> find active memberships ending soon
+         -> NotificationService.was...SentToday checks NotificationLogRepository
+         -> queueInvoiceReminder / queueRenewalReminder
+         -> publish to RabbitMQ
+    -> NotificationConsumer delivers channel messages</div>
+
+      <h3>3.5 Telegram connect flow</h3>
+      <div class="flow">POST /api/v1/members/{memberId}/telegram-connect
+    -> TelegramConnectionService.createConnectSession
+         -> ensure Telegram is enabled and not dry-run
+         -> create TelegramConnectionToken
+         -> build deep link: https://t.me/{bot}?start=connect_{token}
+
+Later sync step
+POST /api/v1/members/telegram-connections/sync
+    -> TelegramConnectionService.syncConnections
+         -> TelegramGateway.getUpdates
+         -> parse /start connect payload
+         -> find token
+         -> ensure not expired / not consumed / no chat conflict
+         -> save member.telegramChatId
+         -> mark token consumed
+         -> return sync report</div>
+    </section>
+
+    <section class="section major">
+      <h2>4. Package Dependency Map</h2>
+      <div class="flow">com.codexgym.gym
+  GymPlatformApplication
+
+com.codexgym.gym.controller
+  Thin HTTP layer. Delegates to application services.
+
+com.codexgym.gym.application
+  Main business rules and orchestration.
+  Coordinates repositories, helper services, events, and messaging.
+
+com.codexgym.gym.repository
+  Data access contracts backed by Spring Data JPA.
+
+com.codexgym.gym.entity
+  Persistent domain model for PostgreSQL.
+
+com.codexgym.gym.service
+  Stateless helpers for mapping, number generation, text generation, and document generation.
+
+com.codexgym.gym.messaging
+  RabbitMQ message models, publisher, and consumer.
+
+com.codexgym.gym.service.email / telegram / whatsapp
+  External delivery gateways.
+
+com.codexgym.gym.config
+  Beans, properties, scheduling support, RabbitMQ setup, CORS, seed data.
+
+com.codexgym.gym.scheduler
+  Time-driven business jobs.
+
+com.codexgym.gym.dto
+  Request and response models for the API.
+
+com.codexgym.gym.exception
+  Uniform API error handling.</div>
+    </section>
+
+    <section class="section">
+      <h2>5. Class Catalog: Boot, Config, And Runtime Files</h2>
+      <table>
+        <thead>
+          <tr><th>Class / File</th><th>Why it exists</th><th>Main integrations</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>GymPlatformApplication</code></td><td>Application entry point. Enables scheduling and JPA auditing before Spring Boot starts the app.</td><td>Spring Boot, scheduler, auditing.</td></tr>
+          <tr><td><code>TimeConfiguration</code></td><td>Creates a shared <code>Clock</code> bean so time-sensitive logic can be tested deterministically.</td><td>Used by billing, dashboard, membership, notifications, scheduler, Telegram link flow.</td></tr>
+          <tr><td><code>CorsProperties</code></td><td>Binds <code>gym.cors.allowed-origins</code> so CORS configuration is environment-driven.</td><td><code>WebCorsConfig</code>, <code>application.yml</code>.</td></tr>
+          <tr><td><code>WebCorsConfig</code></td><td>Allows browser clients to call <code>/api/**</code> from configured origins.</td><td>Reads <code>CorsProperties</code>.</td></tr>
+          <tr><td><code>NotificationProperties</code></td><td>Central configuration model for scheduler windows, RabbitMQ names, brand name, and channel settings.</td><td>Used across messaging, scheduler, notifications, Telegram and WhatsApp delivery.</td></tr>
+          <tr><td><code>NotificationProperties.WhatsAppProperties</code></td><td>Stores WhatsApp enablement, dry-run flag, webhook URL, and bearer token.</td><td><code>DelegatingWhatsAppGateway</code>, <code>WebhookWhatsAppGateway</code>.</td></tr>
+          <tr><td><code>NotificationProperties.EmailProperties</code></td><td>Stores email enablement, sender address, and admin recipient.</td><td><code>SmtpEmailGateway</code>, <code>NotificationService</code>.</td></tr>
+          <tr><td><code>NotificationProperties.TelegramProperties</code></td><td>Stores Telegram enablement, dry-run flag, bot token, bot username, admin chat, and connect-flow settings.</td><td><code>TelegramBotGateway</code>, <code>TelegramConnectionService</code>.</td></tr>
+          <tr><td><code>RabbitMqNotificationConfig</code></td><td>Creates the RabbitMQ exchange, queue, dead-letter queue, bindings, JSON converter, and <code>RabbitTemplate</code>.</td><td><code>RabbitTemplate</code>, RabbitMQ broker, <code>NotificationProperties</code>.</td></tr>
+          <tr><td><code>DevelopmentDataInitializer</code></td><td>Seeds default membership plans when the database is empty so local environments start with usable data.</td><td>Repositories, generators, <code>Clock</code>.</td></tr>
+          <tr><td><code>application.yml</code></td><td>Main runtime configuration file. Declares datasource defaults, RabbitMQ connection settings, queue names, scheduler cron, and channel toggles.</td><td>Spring Boot configuration binding for the entire app.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section">
+      <h2>6. Class Catalog: Domain Model</h2>
+      <table>
+        <thead>
+          <tr><th>Class / Enum</th><th>Why it exists</th><th>Main integrations</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>BaseEntity</code></td><td>Gives every entity a UUID primary key plus created / updated timestamps through JPA auditing.</td><td>Inherited by all persistent entities.</td></tr>
+          <tr><td><code>Member</code></td><td>Represents a gym member and stores contact info, status, image, and Telegram identity.</td><td>Used by memberships, invoices, notifications, cards, Telegram link flow.</td></tr>
+          <tr><td><code>MembershipPlan</code></td><td>Stores reusable commercial plans such as duration, price, joining fee, and access level.</td><td>Selected during membership creation.</td></tr>
+          <tr><td><code>Membership</code></td><td>Represents a member's enrollment into a plan with start / end dates and active state.</td><td>Created and renewed by <code>MembershipService</code>; linked to invoices.</td></tr>
+          <tr><td><code>Invoice</code></td><td>Stores billable financial documents for signup, renewal, or future add-ons.</td><td>Owned by <code>BillingService</code>; linked to payments and reminders.</td></tr>
+          <tr><td><code>Payment</code></td><td>Represents money collected against an invoice.</td><td>Created by <code>BillingService.recordPayment</code>.</td></tr>
+          <tr><td><code>NotificationLog</code></td><td>Audit table for queued, sent, and failed notifications. Also used to suppress duplicate reminders on the same day.</td><td><code>NotificationService</code>, scheduler, consumer.</td></tr>
+          <tr><td><code>TelegramConnectionToken</code></td><td>Temporary token used to safely link a Telegram private chat to a member.</td><td><code>TelegramConnectionService</code>.</td></tr>
+          <tr><td><code>MemberStatus</code></td><td>Member lifecycle state.</td><td>Validated during membership creation and returned in APIs.</td></tr>
+          <tr><td><code>MembershipStatus</code></td><td>Membership lifecycle state.</td><td>Managed by <code>MembershipService</code> and dashboard metrics.</td></tr>
+          <tr><td><code>InvoiceStatus</code></td><td>Invoice lifecycle state such as pending, partially paid, paid, overdue, cancelled.</td><td><code>BillingService</code>, dashboard, reminders.</td></tr>
+          <tr><td><code>InvoiceType</code></td><td>Explains what an invoice is for.</td><td>Used during signup and renewal invoice creation.</td></tr>
+          <tr><td><code>PaymentMethod</code></td><td>Captures how money was collected.</td><td>Used in payment requests and responses.</td></tr>
+          <tr><td><code>NotificationChannel</code></td><td>Declares the delivery medium: WhatsApp, Email, or Telegram.</td><td>Serialized inside queued notification messages.</td></tr>
+          <tr><td><code>NotificationEventType</code></td><td>Declares the business reason for a notification.</td><td>Stored in logs and transported through RabbitMQ.</td></tr>
+          <tr><td><code>NotificationStatus</code></td><td>Tracks whether a log is pending, sent, or failed.</td><td>Updated by <code>NotificationService.markDelivered</code> and <code>markFailed</code>.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section">
+      <h2>7. Class Catalog: Repositories</h2>
+      <table>
+        <thead>
+          <tr><th>Repository</th><th>Why it exists</th><th>Main custom queries</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>MemberRepository</code></td><td>Persists members and supports identity lookups.</td><td>Find by phone number, find by Telegram chat ID, count by status.</td></tr>
+          <tr><td><code>MembershipPlanRepository</code></td><td>Persists plan catalog.</td><td>Includes helper to list active plans by name.</td></tr>
+          <tr><td><code>MembershipRepository</code></td><td>Persists member enrollments.</td><td>Find active memberships by end date, latest membership for a member, count by status.</td></tr>
+          <tr><td><code>InvoiceRepository</code></td><td>Persists invoices and supports reminder selection.</td><td>Find open invoices by due date, count by status.</td></tr>
+          <tr><td><code>PaymentRepository</code></td><td>Persists payments and supports finance reporting.</td><td>List payments for invoice, sum collected revenue between dates.</td></tr>
+          <tr><td><code>NotificationLogRepository</code></td><td>Persists delivery audit records and prevents duplicate reminder sends.</td><td>Exists checks by invoice / membership and event type within a day window.</td></tr>
+          <tr><td><code>TelegramConnectionTokenRepository</code></td><td>Stores pending Telegram connection tokens.</td><td>Find by token, delete unconsumed tokens for a member.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section major">
+      <h2>8. Class Catalog: Application Services, Events, And Scheduler</h2>
+      <table>
+        <thead>
+          <tr><th>Class</th><th>Why it exists</th><th>Main integrations</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>MemberService</code></td><td>Owns member creation, update, lookup, uniqueness handling, and profile-image decoding. Publishes the member-created event.</td><td><code>MemberRepository</code>, <code>MemberCodeGenerator</code>, <code>GymMapper</code>, <code>ApplicationEventPublisher</code>.</td></tr>
+          <tr><td><code>MembershipPlanService</code></td><td>Owns plan creation, listing, and plan lookup.</td><td><code>MembershipPlanRepository</code>, <code>GymMapper</code>.</td></tr>
+          <tr><td><code>MembershipService</code></td><td>Owns membership signup, renewal, expiry refresh, and membership counts. Also creates signup / renewal invoices.</td><td><code>MemberService</code>, <code>MembershipPlanService</code>, <code>MembershipRepository</code>, <code>BillingService</code>, events.</td></tr>
+          <tr><td><code>BillingService</code></td><td>Owns invoice creation, payment recording, overdue refresh, invoice statistics, and receivable totals.</td><td><code>InvoiceRepository</code>, <code>PaymentRepository</code>, <code>InvoiceNumberGenerator</code>, <code>GymMapper</code>.</td></tr>
+          <tr><td><code>DashboardService</code></td><td>Aggregates member, membership, invoice, and payment statistics into a single dashboard response.</td><td><code>MemberRepository</code>, <code>MembershipService</code>, <code>BillingService</code>, <code>PaymentRepository</code>.</td></tr>
+          <tr><td><code>NotificationService</code></td><td>Core notification orchestrator. Builds business messages, creates notification logs, decides channels, and publishes queue messages.</td><td>Billing, membership, member, card service, repositories, document factories, message factory, publisher, config.</td></tr>
+          <tr><td><code>TelegramConnectionService</code></td><td>Implements the Telegram deep-link connect flow, manual linking, and update synchronization from the bot.</td><td><code>MemberService</code>, <code>MemberRepository</code>, <code>TelegramConnectionTokenRepository</code>, <code>TelegramGateway</code>.</td></tr>
+          <tr><td><code>MemberCardService</code></td><td>Prepares member or membership card attachments by combining member data, latest membership data, and document generation.</td><td><code>MemberService</code>, <code>MembershipService</code>, <code>MemberCardDocumentFactory</code>.</td></tr>
+          <tr><td><code>MemberCardService.MemberCardSnapshot</code></td><td>Small helper record that bundles member, membership, and generated attachment so callers get one object back.</td><td>Used by controllers and <code>NotificationService</code>.</td></tr>
+          <tr><td><code>DelegatingWhatsAppGateway</code></td><td>Chooses between real webhook delivery and simulated logging delivery based on config.</td><td><code>LoggingWhatsAppGateway</code>, optional <code>WebhookWhatsAppGateway</code>, <code>NotificationProperties</code>.</td></tr>
+          <tr><td><code>MemberCardAutomationListener</code></td><td>Runs after successful transactions and automatically queues member card deliveries.</td><td><code>MemberCreatedEvent</code>, <code>MembershipCardRefreshEvent</code>, <code>NotificationService</code>.</td></tr>
+          <tr><td><code>FeeReminderScheduler</code></td><td>Daily time-driven job that refreshes stale states and queues reminders for invoices and memberships.</td><td><code>BillingService</code>, <code>MembershipService</code>, <code>NotificationService</code>, <code>NotificationProperties</code>.</td></tr>
+          <tr><td><code>MemberCreatedEvent</code></td><td>Signals that a member was successfully created.</td><td>Published by <code>MemberService</code>; consumed by <code>MemberCardAutomationListener</code>.</td></tr>
+          <tr><td><code>MembershipCardRefreshEvent</code></td><td>Signals that a membership change should refresh the card.</td><td>Published by <code>MembershipService</code>; consumed by <code>MemberCardAutomationListener</code>.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section">
+      <h2>9. Class Catalog: Messaging Layer</h2>
+      <table>
+        <thead>
+          <tr><th>Class</th><th>Why it exists</th><th>Main integrations</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>NotificationPublisher</code></td><td>Abstraction for putting notification work onto an async transport.</td><td>Implemented by <code>RabbitMqNotificationPublisher</code>.</td></tr>
+          <tr><td><code>RabbitMqNotificationPublisher</code></td><td>Sends serialized <code>NotificationEventMessage</code> objects to the configured exchange and routing key.</td><td><code>RabbitTemplate</code>, <code>NotificationProperties</code>.</td></tr>
+          <tr><td><code>NotificationEventMessage</code></td><td>Queue payload carrying the notification log id, recipient, event type, channel, subject, body, and optional attachment.</td><td>Created by <code>NotificationService</code>; consumed by <code>NotificationConsumer</code>.</td></tr>
+          <tr><td><code>NotificationAttachment</code></td><td>Serializable wrapper for file name, content type, and raw bytes.</td><td>Used for receipts and cards in email / Telegram delivery.</td></tr>
+          <tr><td><code>NotificationConsumer</code></td><td>RabbitMQ listener that receives queued messages, dispatches the correct channel gateway, and marks logs sent or failed.</td><td><code>@RabbitListener</code>, email / Telegram / WhatsApp gateways, <code>NotificationService</code>.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section">
+      <h2>10. Class Catalog: Helpers And External Integrations</h2>
+      <table>
+        <thead>
+          <tr><th>Class</th><th>Why it exists</th><th>Main integrations</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>GymMapper</code></td><td>Converts JPA entities into API response DTOs and converts profile-image bytes into a data URL for clients.</td><td>Used by most services.</td></tr>
+          <tr><td><code>MemberCodeGenerator</code></td><td>Creates human-readable member codes with date prefix and random suffix.</td><td><code>MemberService</code>.</td></tr>
+          <tr><td><code>InvoiceNumberGenerator</code></td><td>Creates human-readable invoice numbers with date prefix and random suffix.</td><td><code>BillingService</code>.</td></tr>
+          <tr><td><code>NotificationMessageFactory</code></td><td>Centralizes the human-facing text for reminders, receipts, renewals, and cards.</td><td><code>NotificationService</code>, <code>NotificationProperties</code>.</td></tr>
+          <tr><td><code>MemberCardDocumentFactory</code></td><td>Generates a styled HTML member / membership card attachment. It is an HTML attachment, not a PDF generator.</td><td><code>MemberCardService</code>, <code>NotificationProperties</code>.</td></tr>
+          <tr><td><code>InvoiceDocumentFactory</code></td><td>Generates a styled HTML receipt attachment for paid invoices.</td><td><code>NotificationService</code>, <code>NotificationProperties</code>.</td></tr>
+          <tr><td><code>EmailGateway</code></td><td>Abstraction for sending email with or without attachments.</td><td>Implemented by <code>SmtpEmailGateway</code>.</td></tr>
+          <tr><td><code>SmtpEmailGateway</code></td><td>Sends email through Spring Mail and SMTP. Supports attachment delivery.</td><td><code>JavaMailSender</code>, <code>MailProperties</code>, <code>NotificationProperties</code>.</td></tr>
+          <tr><td><code>TelegramGateway</code></td><td>Abstraction for Telegram operations: send message, send document, read updates.</td><td>Implemented by <code>TelegramBotGateway</code>.</td></tr>
+          <tr><td><code>TelegramGateway.TelegramUpdatesResponse</code></td><td>Maps Telegram's <code>getUpdates</code> HTTP response.</td><td>Used in <code>TelegramBotGateway</code>.</td></tr>
+          <tr><td><code>TelegramGateway.TelegramUpdate</code></td><td>Maps one Telegram update payload.</td><td>Used by <code>TelegramConnectionService</code>.</td></tr>
+          <tr><td><code>TelegramGateway.TelegramMessage</code></td><td>Maps the message portion inside an update.</td><td>Used by <code>TelegramConnectionService</code>.</td></tr>
+          <tr><td><code>TelegramGateway.TelegramChat</code></td><td>Maps chat metadata inside a Telegram message.</td><td>Used by <code>TelegramConnectionService</code>.</td></tr>
+          <tr><td><code>TelegramBotGateway</code></td><td>Calls Telegram Bot HTTP endpoints to send messages, send documents, and fetch updates.</td><td><code>RestClient</code>, <code>NotificationProperties</code>.</td></tr>
+          <tr><td><code>TelegramBotGateway.TelegramSendMessageRequest</code></td><td>Internal request record for Telegram's <code>sendMessage</code> API.</td><td>Used only inside <code>TelegramBotGateway</code>.</td></tr>
+          <tr><td><code>WhatsAppGateway</code></td><td>Abstraction for WhatsApp delivery.</td><td>Implemented by logging and webhook variants.</td></tr>
+          <tr><td><code>LoggingWhatsAppGateway</code></td><td>Dry-run fallback that logs messages instead of sending them to a real provider.</td><td>Used by <code>DelegatingWhatsAppGateway</code>.</td></tr>
+          <tr><td><code>WebhookWhatsAppGateway</code></td><td>Real WhatsApp delivery adapter that posts JSON to a configured webhook.</td><td><code>RestClient</code>, <code>NotificationProperties</code>.</td></tr>
+          <tr><td><code>WebhookWhatsAppGateway.WhatsAppWebhookRequest</code></td><td>Internal request payload for the configured WhatsApp webhook.</td><td>Used only inside <code>WebhookWhatsAppGateway</code>.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section major">
+      <h2>11. Class Catalog: Controllers</h2>
+      <table>
+        <thead>
+          <tr><th>Controller</th><th>Why it exists</th><th>Main endpoints</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>MemberController</code></td><td>HTTP layer for member CRUD-style actions, card download / send, and Telegram linking.</td><td><code>POST /members</code>, <code>PUT /members/{id}</code>, <code>GET /members</code>, <code>GET /members/by-phone</code>, card endpoints, Telegram endpoints.</td></tr>
+          <tr><td><code>MembershipPlanController</code></td><td>HTTP layer for creating and listing plan catalog entries.</td><td><code>POST /membership-plans</code>, <code>GET /membership-plans</code>.</td></tr>
+          <tr><td><code>MembershipController</code></td><td>HTTP layer for creating, listing, renewing memberships, and card operations.</td><td><code>POST /memberships</code>, <code>GET /memberships</code>, <code>POST /memberships/{id}/renew</code>, card endpoints.</td></tr>
+          <tr><td><code>InvoiceController</code></td><td>HTTP layer for invoice listing, payment recording, payment history, and receipt-notification sending.</td><td><code>GET /invoices</code>, <code>POST /invoices/{id}/payments</code>, <code>GET /invoices/{id}/payments</code>, receipt notification endpoints.</td></tr>
+          <tr><td><code>NotificationController</code></td><td>HTTP layer for manual member announcements and admin test messages.</td><td><code>POST /notifications/announcements</code>, <code>POST /notifications/admin-test</code>.</td></tr>
+          <tr><td><code>DashboardController</code></td><td>Single endpoint for dashboard summary metrics.</td><td><code>GET /dashboard</code>.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section">
+      <h2>12. Class Catalog: DTOs</h2>
+      <table>
+        <thead>
+          <tr><th>DTO</th><th>Why it exists</th><th>Used by</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>CreateMemberRequest</code></td><td>Validated input contract for member creation and update, including optional image and Telegram fields.</td><td><code>MemberController</code> -> <code>MemberService</code>.</td></tr>
+          <tr><td><code>CreateMembershipPlanRequest</code></td><td>Validated input contract for plan creation.</td><td><code>MembershipPlanController</code>.</td></tr>
+          <tr><td><code>CreateMembershipRequest</code></td><td>Validated input for creating a membership and its opening invoice.</td><td><code>MembershipController</code>.</td></tr>
+          <tr><td><code>DashboardResponse</code></td><td>Compact response shape for dashboard metrics.</td><td><code>DashboardController</code>.</td></tr>
+          <tr><td><code>ErrorResponse</code></td><td>Uniform API error response shape.</td><td><code>GlobalExceptionHandler</code>.</td></tr>
+          <tr><td><code>InvoiceResponse</code></td><td>API shape for invoice data.</td><td><code>BillingService</code>, <code>GymMapper</code>.</td></tr>
+          <tr><td><code>MemberResponse</code></td><td>API shape for member data.</td><td><code>MemberService</code>, <code>TelegramConnectionService</code>.</td></tr>
+          <tr><td><code>MembershipEnrollmentResponse</code></td><td>Bundles membership and invoice when signup or renewal completes.</td><td><code>MembershipService</code>.</td></tr>
+          <tr><td><code>MembershipPlanResponse</code></td><td>API shape for plan data.</td><td><code>MembershipPlanService</code>.</td></tr>
+          <tr><td><code>MembershipResponse</code></td><td>API shape for membership data.</td><td><code>MembershipService</code>.</td></tr>
+          <tr><td><code>PaymentResponse</code></td><td>API shape for payment records.</td><td><code>BillingService</code>.</td></tr>
+          <tr><td><code>RecordPaymentRequest</code></td><td>Validated input for recording a payment.</td><td><code>InvoiceController</code>.</td></tr>
+          <tr><td><code>RenewMembershipRequest</code></td><td>Validated input for membership renewal and renewal invoice values.</td><td><code>MembershipController</code>.</td></tr>
+          <tr><td><code>SendAdminTestNotificationRequest</code></td><td>Validated input for a manual admin test message.</td><td><code>NotificationController</code>.</td></tr>
+          <tr><td><code>SendAnnouncementRequest</code></td><td>Validated input for sending an announcement to one member.</td><td><code>NotificationController</code>.</td></tr>
+          <tr><td><code>TelegramConnectSessionResponse</code></td><td>Returns the generated deep-link session details for Telegram linking.</td><td><code>MemberController</code> -> <code>TelegramConnectionService</code>.</td></tr>
+          <tr><td><code>TelegramConnectionSyncResponse</code></td><td>Reports how many Telegram updates were scanned and which members linked successfully.</td><td><code>TelegramConnectionService</code>.</td></tr>
+          <tr><td><code>TelegramConnectionSyncResponse.TelegramConnectionResult</code></td><td>One row in the sync report describing the outcome for a single connect attempt.</td><td>Nested inside the sync response.</td></tr>
+          <tr><td><code>UpdateMemberTelegramChatRequest</code></td><td>Validated input for manual Telegram chat-id linking.</td><td><code>MemberController</code>.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section">
+      <h2>13. Class Catalog: Exception Handling And Tests</h2>
+      <table>
+        <thead>
+          <tr><th>Class</th><th>Why it exists</th><th>Main coverage / behavior</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>ApiException</code></td><td>Business-friendly exception carrying an HTTP status plus message.</td><td>Thrown by services whenever domain rules are violated.</td></tr>
+          <tr><td><code>GlobalExceptionHandler</code></td><td>Maps business, validation, and unexpected exceptions into consistent JSON error responses.</td><td>Handles <code>ApiException</code>, bean validation failures, generic errors.</td></tr>
+          <tr><td><code>BillingServiceTest</code></td><td>Verifies payment recording updates invoice balances and rejects overpayment.</td><td>Focuses on billing rule correctness.</td></tr>
+          <tr><td><code>MembershipServiceTest</code></td><td>Verifies membership creation also creates the correct invoice and publishes a card-refresh event.</td><td>Focuses on signup orchestration.</td></tr>
+          <tr><td><code>NotificationServiceTest</code></td><td>Verifies receipt queueing behavior, receipt attachment generation, and admin-copy suppression when chats match.</td><td>Focuses on notification orchestration.</td></tr>
+          <tr><td><code>NotificationConsumerTest</code></td><td>Verifies Telegram document dispatch when an attachment is present and that logs are marked delivered.</td><td>Focuses on channel dispatch behavior.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section major">
+      <h2>14. Integration Notes And Key Design Decisions</h2>
+      <ul>
+        <li><strong>Why RabbitMQ exists:</strong> the app does not send external messages directly inside core request paths. It queues work so APIs stay faster and external outages are isolated.</li>
+        <li><strong>Why notification logs exist:</strong> they provide an audit trail and allow "was this reminder already sent today?" checks.</li>
+        <li><strong>Why a shared Clock bean exists:</strong> business logic and tests can agree on time without calling <code>LocalDate.now()</code> everywhere.</li>
+        <li><strong>Why document factories return HTML attachments:</strong> the system currently generates styled HTML files for receipts and cards. A separate uploaded-PDF flow exists for invoice receipts when a real PDF file is available.</li>
+        <li><strong>Why application events are used:</strong> member-card delivery is triggered after a successful transaction commit, which avoids sending cards for rolled-back writes.</li>
+        <li><strong>Why WhatsApp uses delegation:</strong> environments without a real webhook still work through a dry-run logging adapter.</li>
+        <li><strong>Why Telegram link tokens exist:</strong> they prevent arbitrary chat-id assignment and create a safer "deep-link then confirm" integration flow.</li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <h2>15. Suggested Reading Order For A New Developer</h2>
+      <div class="flow">1. GymPlatformApplication
+2. application.yml
+3. Domain entities: Member, MembershipPlan, Membership, Invoice, Payment, NotificationLog
+4. Repositories
+5. Application services:
+     MemberService
+     MembershipPlanService
+     MembershipService
+     BillingService
+     NotificationService
+6. Messaging:
+     RabbitMqNotificationConfig
+     RabbitMqNotificationPublisher
+     NotificationConsumer
+7. External gateways:
+     SmtpEmailGateway
+     TelegramBotGateway
+     DelegatingWhatsAppGateway
+8. Controllers
+9. Scheduler and TelegramConnectionService
+10. Tests for confidence in the main orchestration paths</div>
+    </section>
+
+    <section class="section">
+      <h2>16. Final Mental Model</h2>
+      <p>
+        If you remember only one mental picture, make it this: the project is a CRUD-and-workflow
+        backend where <strong>memberships create invoices</strong>, <strong>payments update invoices</strong>,
+        <strong>notifications are queued asynchronously</strong>, and <strong>cards / receipts are generated as
+        attachments</strong>. Controllers stay thin, application services own rules, repositories own persistence,
+        and RabbitMQ separates business decisions from external message delivery.
+      </p>
+    </section>
+  </body>
+</html>
