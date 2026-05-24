@@ -17,7 +17,7 @@
     <description>Industry-style gym membership, billing, and notification platform</description>
 
     <properties>
-        <java.version>21</java.version>
+        <java.version>22</java.version>
     </properties>
 
     <dependencies>
@@ -69,6 +69,16 @@
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
             <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>2.3.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-api</artifactId>
+            <version>2.3.0</version>
         </dependency>
     </dependencies>
 

@@ -1,0 +1,31 @@
+package com.codexgym.gym.config;
+
+import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.oas.models.info.Info;
+import io.swagger.v3.oas.models.info.Contact;
+import io.swagger.v3.oas.models.info.License;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+/**
+ * OpenAPI (Swagger) configuration for API documentation
+ */
+@Configuration
+public class OpenApiConfig {
+
+    @Bean
+    public OpenAPI customOpenAPI() {
+        return new OpenAPI()
+                .info(new Info()
+                        .title("Gym Platform API")
+                        .version("1.0.0")
+                        .description("Industry-style gym membership, billing, and notification platform API documentation")
+                        .contact(new Contact()
+                                .name("Codex Gym")
+                                .url("https://github.com/Vigneshg21/gym-application"))
+                        .license(new License()
+                                .name("Apache License 2.0")
+                                .url("https://www.apache.org/licenses/LICENSE-2.0.html")));
+    }
+}
+
